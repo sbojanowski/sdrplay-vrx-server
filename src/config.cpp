@@ -1,0 +1,78 @@
+#include "config.hpp"
+
+#include <cmath>
+#include <stdexcept>
+
+#include <yaml-cpp/yaml.h>
+
+namespace {
+
+template <typename T>
+T requireField(const YAML::Node& node, const char* key, const std::string& context) {
+  const YAML::Node field = node[key];
+  if (!field) {
+    throw std::runtime_error(context + ": missing required field \"" + key + "\"");
+  }
+  return field.as<T>();
+}
+
+SdrplayConfig parseSdrplayConfig(const YAML::Node& node) {
+  if (!node) throw std::runtime_error("config: missing required \"sdrplay\" section");
+
+  SdrplayConfig cfg;
+  if (node["serial_number"]) cfg.serialNumber = node["serial_number"].as<std::string>();
+  cfg.centerFrequencyHz = requireField<double>(node, "center_frequency_hz", "sdrplay");
+  cfg.sampleRateHz = requireField<double>(node, "sample_rate_hz", "sdrplay");
+  if (node["gain_reduction_db"]) cfg.gainReductionDb = node["gain_reduction_db"].as<int>();
+  if (node["lna_state"]) cfg.lnaState = node["lna_state"].as<int>();
+  if (node["agc"]) cfg.agc = node["agc"].as<bool>();
+  if (node["agc_set_point_dbfs"]) cfg.agcSetPointDbfs = node["agc_set_point_dbfs"].as<int>();
+  if (node["ppm"]) cfg.ppm = node["ppm"].as<double>();
+  if (node["bias_t"]) cfg.biasT = node["bias_t"].as<bool>();
+  if (node["antenna"]) cfg.antenna = node["antenna"].as<int>();
+  return cfg;
+}
+
+VirtualReceiverConfig parseVirtualReceiverConfig(const YAML::Node& node) {
+  VirtualReceiverConfig cfg;
+  cfg.name = requireField<std::string>(node, "name", "virtual_receivers[]");
+  cfg.tcpPort = requireField<uint16_t>(node, "tcp_port", "virtual_receivers[]: \"" + cfg.name + "\"");
+  cfg.centerFrequencyHz =
+      requireField<double>(node, "center_frequency_hz", "virtual_receivers[]: \"" + cfg.name + "\"");
+  cfg.sampleRateHz = requireField<double>(node, "sample_rate_hz", "virtual_receivers[]: \"" + cfg.name + "\"");
+  return cfg;
+}
+
+} // namespace
+
+AppConfig loadConfig(const std::string& path) {
+  YAML::Node root;
+  try {
+    root = YAML::LoadFile(path);
+  } catch (const YAML::Exception& e) {
+    throw std::runtime_error("config: failed to parse \"" + path + "\": " + e.what());
+  }
+
+  AppConfig cfg;
+  cfg.sdrplay = parseSdrplayConfig(root["sdrplay"]);
+
+  const YAML::Node vrxNode = root["virtual_receivers"];
+  if (!vrxNode || !vrxNode.IsSequence() || vrxNode.size() == 0) {
+    throw std::runtime_error("config: missing/empty required \"virtual_receivers\" list");
+  }
+  for (const auto& entry : vrxNode) {
+    cfg.virtualReceivers.push_back(parseVirtualReceiverConfig(entry));
+  }
+
+  for (const auto& vrx : cfg.virtualReceivers) {
+    if (cfg.sdrplay.sampleRateHz <= 0 ||
+        std::fmod(cfg.sdrplay.sampleRateHz, vrx.sampleRateHz) != 0.0) {
+      throw std::runtime_error(
+          "config: VRX \"" + vrx.name + "\": wideband sample rate " +
+          std::to_string(cfg.sdrplay.sampleRateHz) + " is not an integer multiple of requested VRX sample rate " +
+          std::to_string(vrx.sampleRateHz) + ". See dsp/decimator.hpp.");
+    }
+  }
+
+  return cfg;
+}

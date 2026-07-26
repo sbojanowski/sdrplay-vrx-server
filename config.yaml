@@ -1,0 +1,49 @@
+# Central configuration for the wideband capture and the virtual receivers
+# (VRXs) channelized out of it. Mirrors a real two-channel setup (marine VHF
+# + AIS) sitting inside an 8.192 MHz wideband capture centered at 159.35 MHz -
+# swap in your own values.
+
+sdrplay:
+  # Serial number of the RSP to use, if more than one is connected.
+  # Omit to use the first device found.
+  # serial_number: "1234567890"
+
+  center_frequency_hz: 159350000
+  sample_rate_hz: 8192000
+
+  # Manual IF gain reduction, in dB (sdrplay_api_GainT.gRdB). Ignored while
+  # agc is true; kept as the fallback value if agc is ever turned off.
+  gain_reduction_db: 40
+
+  # Front-end (LNA) attenuation state - model- and band-dependent, see the
+  # SDRplay API spec's gain tables. AGC only adjusts the IF gain stage below
+  # this, so raise this if you see front-end overload events even with AGC
+  # enabled, lower it if the signal seems weak/noisy.
+  lna_state: 4
+
+  # Use the RSP's AGC instead of a fixed gain_reduction_db.
+  agc: true
+  agc_set_point_dbfs: -30
+
+  # Frequency correction, in ppm.
+  ppm: 0
+
+  # Enable bias-tee, if supported by the selected RSP model (not RSP1).
+  bias_t: false
+
+  # Antenna input to select, on models with more than one:
+  #   RSP2: A=5, B=6
+  #   RSPdx / RSPdxR2: A=0, B=1, C=2
+  # Ignored on single-antenna models (RSP1, RSP1A, RSP1B, RSPduo).
+  antenna: 2 # RSPdx antenna C
+
+virtual_receivers:
+  - name: marine-vhf-ch16
+    tcp_port: 1235
+    center_frequency_hz: 156700000 # Ch. 16 calling/distress
+    sample_rate_hz: 256000 # 8192000 / 32
+
+  - name: ais
+    tcp_port: 1236
+    center_frequency_hz: 162000000 # AIS 1/2 (161.975 / 162.025)
+    sample_rate_hz: 256000 # 8192000 / 32
