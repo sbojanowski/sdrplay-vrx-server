@@ -300,7 +300,10 @@ void SdrplayApiClient::setBiasTee(bool enabled) {
 
 void SdrplayApiClient::update(uint32_t reasonForUpdate, uint32_t reasonForUpdateExt1) {
   if (!deviceSelected_) return;
-  const sdrplay_api_ErrT err = sdrplay_api_Update(device_.dev, device_.tuner, reasonForUpdate, reasonForUpdateExt1);
+  const sdrplay_api_ErrT err = sdrplay_api_Update(
+      device_.dev, device_.tuner,
+      static_cast<sdrplay_api_ReasonForUpdateT>(reasonForUpdate),
+      static_cast<sdrplay_api_ReasonForUpdateExtension1T>(reasonForUpdateExt1));
   if (err != sdrplay_const::kErrSuccess) {
     std::cerr << "[sdrplay] Update failed: " << sdrplay_api_GetErrorString(err) << "\n";
   }
