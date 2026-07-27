@@ -10,6 +10,17 @@ endif()
 find_package(yaml-cpp REQUIRED)
 find_package(Threads REQUIRED)
 
+# Some distro-packaged yaml-cpp builds (e.g. Debian/Ubuntu libyaml-cpp-dev)
+# only export the plain "yaml-cpp" target rather than the namespaced
+# "yaml-cpp::yaml-cpp" alias that upstream releases >= 0.7 provide.
+if(NOT TARGET yaml-cpp::yaml-cpp)
+  if(TARGET yaml-cpp)
+    add_library(yaml-cpp::yaml-cpp ALIAS yaml-cpp)
+  else()
+    message(FATAL_ERROR "find_package(yaml-cpp) succeeded but no yaml-cpp or yaml-cpp::yaml-cpp target was exported.")
+  endif()
+endif()
+
 # The SDRplay API SDK is a proprietary vendor install, not a package-manager
 # dependency - its Linux/ARM installer drops libsdrplay_api.so and
 # sdrplay_api.h (plus the sdrplay_api_*.h headers it includes) under
