@@ -1,10 +1,10 @@
-#include "sdrplay_client.hpp"
+#include "client.hpp"
 
 #include <iostream>
 #include <stdexcept>
 #include <string>
 
-#include "sdrplay_const.hpp"
+#include "../sdrplay_const.hpp"
 
 namespace {
 

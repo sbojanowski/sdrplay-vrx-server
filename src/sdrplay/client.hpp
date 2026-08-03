@@ -8,7 +8,8 @@
 
 #include <sdrplay_api.h>
 
-#include "config.hpp"
+#include "../config.hpp"
+#include "../iq_source.hpp"
 
 /**
  * Talks directly to the SDRplay API service (`libsdrplay_api`), the same
@@ -28,18 +29,16 @@
  * NOT VERIFIED AGAINST A REAL BUILD OF sdrplay_api.h - see cpp/README.md's
  * "Known risk" section before trusting this against real hardware.
  */
-class SdrplayApiClient {
+class SdrplayApiClient : public IqSource {
 public:
-  using IqCallback = std::function<void(const float* interleavedIq, size_t numSamples)>;
-
   explicit SdrplayApiClient(const SdrplayConfig& cfg);
-  ~SdrplayApiClient();
+  ~SdrplayApiClient() override;
 
   SdrplayApiClient(const SdrplayApiClient&) = delete;
   SdrplayApiClient& operator=(const SdrplayApiClient&) = delete;
 
-  void connect();
-  void close();
+  void connect() override;
+  void close() override;
 
   /** Retune the RSP's RF center frequency while streaming. */
   void retune(double centerFrequencyHz);
@@ -50,8 +49,7 @@ public:
   /** Enable/disable bias-tee, if the selected model supports it. */
   void setBiasTee(bool enabled);
 
-  /** Invoked with normalized interleaved IQ (roughly -1..1) for every wideband chunk the driver delivers. */
-  void setIqCallback(IqCallback cb) { onIq_ = std::move(cb); }
+  void setIqCallback(IqCallback cb) override { onIq_ = std::move(cb); }
 
 private:
   static void streamCallbackTrampoline(short* xi, short* xq, sdrplay_api_StreamCbParamsT* params,
