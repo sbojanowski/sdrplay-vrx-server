@@ -33,6 +33,23 @@ SdrplayConfig parseSdrplayConfig(const YAML::Node& node) {
   return cfg;
 }
 
+SdrConnectConfig parseSdrConnectConfig(const YAML::Node& node) {
+  if (!node) throw std::runtime_error("config: missing required \"sdrconnect\" section (connection: sdrconnect)");
+
+  SdrConnectConfig cfg;
+  if (node["host"]) cfg.host = node["host"].as<std::string>();
+  if (node["port"]) cfg.port = node["port"].as<uint16_t>();
+  if (node["serial_number"]) cfg.serialNumber = node["serial_number"].as<std::string>();
+  if (node["network_mode"]) cfg.networkMode = node["network_mode"].as<std::string>();
+
+  if (cfg.networkMode != "Full IQ" && cfg.networkMode != "IQ Lite" && cfg.networkMode != "Compact") {
+    throw std::runtime_error(
+        "config: sdrconnect.network_mode must be one of \"Full IQ\", \"IQ Lite\", \"Compact\", got \"" +
+        cfg.networkMode + "\"");
+  }
+  return cfg;
+}
+
 VirtualReceiverConfig parseVirtualReceiverConfig(const YAML::Node& node) {
   VirtualReceiverConfig cfg;
   cfg.name = requireField<std::string>(node, "name", "virtual_receivers[]");
@@ -55,6 +72,20 @@ AppConfig loadConfig(const std::string& path) {
 
   AppConfig cfg;
   cfg.sdrplay = parseSdrplayConfig(root["sdrplay"]);
+
+  if (root["connection"]) {
+    const std::string mode = root["connection"].as<std::string>();
+    if (mode == "api") {
+      cfg.connection = ConnectionMode::Api;
+    } else if (mode == "sdrconnect") {
+      cfg.connection = ConnectionMode::SdrConnect;
+    } else {
+      throw std::runtime_error("config: \"connection\" must be \"api\" or \"sdrconnect\", got \"" + mode + "\"");
+    }
+  }
+  if (cfg.connection == ConnectionMode::SdrConnect) {
+    cfg.sdrconnect = parseSdrConnectConfig(root["sdrconnect"]);
+  }
 
   const YAML::Node vrxNode = root["virtual_receivers"];
   if (!vrxNode || !vrxNode.IsSequence() || vrxNode.size() == 0) {

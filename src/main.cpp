@@ -8,8 +8,10 @@
 
 #include "config.hpp"
 #include "dsp/virtual_receiver.hpp"
+#include "iq_source.hpp"
 #include "rtltcp/server.hpp"
-#include "sdrplay_client.hpp"
+#include "sdrconnect/client.hpp"
+#include "sdrplay/client.hpp"
 
 namespace {
 
@@ -34,7 +36,12 @@ int main(int argc, char** argv) {
   std::signal(SIGTERM, handleSignal);
   std::signal(SIGPIPE, SIG_IGN); // a client disconnecting mid-write must not kill the process
 
-  SdrplayApiClient client(config.sdrplay);
+  std::unique_ptr<IqSource> client;
+  if (config.connection == ConnectionMode::Api) {
+    client = std::make_unique<SdrplayApiClient>(config.sdrplay);
+  } else {
+    client = std::make_unique<sdrconnect::SdrConnectClient>(config.sdrplay, *config.sdrconnect);
+  }
 
   std::vector<std::unique_ptr<VirtualReceiver>> vrxs;
   vrxs.reserve(config.virtualReceivers.size());
@@ -53,7 +60,7 @@ int main(int argc, char** argv) {
   // upstream link, N downstream channels" fanout. Each VRX independently
   // mixes+decimates the same wideband samples down to its own slice. Runs
   // on the SDRplay driver's own streaming thread.
-  client.setIqCallback([&vrxs](const float* samples, size_t numSamples) {
+  client->setIqCallback([&vrxs](const float* samples, size_t numSamples) {
     for (auto& vrx : vrxs) {
       vrx->processWidebandChunk(samples, numSamples);
     }
@@ -61,7 +68,7 @@ int main(int argc, char** argv) {
 
   try {
     for (auto& server : servers) server->start();
-    client.connect();
+    client->connect();
   } catch (const std::exception& e) {
     std::cerr << "Startup failed: " << e.what() << "\n";
     for (auto& server : servers) server->stop();
@@ -77,6 +84,6 @@ int main(int argc, char** argv) {
 
   std::cout << "\nShutting down...\n";
   for (auto& server : servers) server->stop();
-  client.close();
+  client->close();
   return 0;
 }

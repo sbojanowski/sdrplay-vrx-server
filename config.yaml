@@ -3,9 +3,22 @@
 # + AIS) sitting inside an 8.192 MHz wideband capture centered at 159.35 MHz -
 # swap in your own values.
 
+# Which backend supplies wideband IQ. "api" (default) opens the RSP directly
+# via libsdrplay_api, on the same machine the device is plugged into. Use
+# "sdrconnect" to instead pull IQ from a running SDRconnect instance (GUI or
+# Headless) over its WebSocket API - see the "sdrconnect:" block below. Note
+# that SDRconnect's WebSocket API has no property for IF-gain AGC, bias-tee,
+# or PPM correction, so agc/gain_reduction_db/agc_set_point_dbfs/ppm/bias_t/
+# antenna below are silently ignored in that mode (SDRconnect manages them
+# itself); center_frequency_hz/sample_rate_hz/lna_state are honored in both
+# modes, since they describe the wideband capture layout the VRXs decimate
+# from either way.
+connection: api
+
 sdrplay:
   # Serial number of the RSP to use, if more than one is connected.
-  # Omit to use the first device found.
+  # Omit to use the first device found. Ignored when connection: sdrconnect
+  # (use sdrconnect.serial_number instead).
   # serial_number: "1234567890"
 
   center_frequency_hz: 159350000
@@ -36,6 +49,16 @@ sdrplay:
   #   RSPdx / RSPdxR2: A=0, B=1, C=2
   # Ignored on single-antenna models (RSP1, RSP1A, RSP1B, RSPduo).
   antenna: 2 # RSPdx antenna C
+
+# Only used when connection: sdrconnect above.
+# sdrconnect:
+#   host: "127.0.0.1"     # host running SDRconnect
+#   port: 5454            # SDRconnect's WebSocket API port
+#   # Select a specific device by serial number. Omit to use whichever device
+#   # SDRconnect currently has active.
+#   serial_number: "1234567890"
+#   # Network streaming mode, only applied if serial_number is set above.
+#   network_mode: "Full IQ" # "Full IQ" | "IQ Lite" | "Compact"
 
 virtual_receivers:
   - name: marine-vhf-ch16

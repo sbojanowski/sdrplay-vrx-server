@@ -52,7 +52,7 @@ public:
       const double nextIm = phaseRe * rotationIm + phaseIm * rotationRe;
       phaseRe = nextRe;
       phaseIm = nextIm;
-    }   
+    }
 
     // Repeated complex multiplication drifts off the unit circle over time -
     // renormalize once per chunk (cheap relative to the per-sample loop) to

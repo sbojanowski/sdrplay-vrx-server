@@ -46,11 +46,13 @@ endif()
 add_executable(sdrplay-vrx-server
   src/main.cpp
   src/config.cpp
-  src/sdrplay_client.cpp
+  src/sdrplay/client.cpp
   src/dsp/decimator.cpp
   src/dsp/virtual_receiver.cpp
   src/rtltcp/protocol.cpp
   src/rtltcp/server.cpp
+  src/sdrconnect/websocket.cpp
+  src/sdrconnect/client.cpp
 )
 
 target_include_directories(sdrplay-vrx-server PRIVATE

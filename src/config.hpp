@@ -32,10 +32,34 @@ struct SdrplayConfig {
   /**
    * Antenna input to select, on models with more than one (RSP2: A/B,
    * RSPdx/RSPdxR2: A/B/C). Raw sdrplay_api antenna-select value - see
-   * sdrplay_const::kRsp2Antenna* / kRspDxAntenna* in sdrplay_client.hpp.
+   * sdrplay_const::kRsp2Antenna* / kRspDxAntenna* in sdrplay/client.hpp.
    * Unset (nullopt) is ignored on single-antenna models.
    */
   std::optional<int> antenna;
+};
+
+enum class ConnectionMode { Api, SdrConnect };
+
+/**
+ * Connection settings for the SDRconnect WebSocket backend (an alternative to
+ * the local sdrplay_api - see https://www.sdrplay.com/docs/SDRconnect_WebSocket_API.pdf).
+ * Only used when AppConfig::connection == ConnectionMode::SdrConnect. Note
+ * that SDRconnect's WebSocket API exposes no property for IF-gain AGC,
+ * bias-tee, or PPM correction - SdrplayConfig's agc/gainReductionDb/
+ * agcSetPointDbfs/ppm/biasT/antenna/serialNumber fields are silently ignored
+ * in this mode. centerFrequencyHz/sampleRateHz/lnaState on SdrplayConfig are
+ * still honored, since they describe the wideband capture layout the VRX
+ * decimation math depends on regardless of backend.
+ */
+struct SdrConnectConfig {
+  /** Host running SDRconnect (GUI or Headless). */
+  std::string host = "127.0.0.1";
+  /** SDRconnect's WebSocket API port. */
+  uint16_t port = 5454;
+  /** Select a specific device by serial number. Unset uses whatever device SDRconnect currently has active. */
+  std::optional<std::string> serialNumber;
+  /** Network streaming mode, appended to the device selector. Only takes effect if serialNumber is set. */
+  std::string networkMode = "Full IQ"; // "Full IQ" | "IQ Lite" | "Compact"
 };
 
 struct VirtualReceiverConfig {
@@ -58,7 +82,11 @@ struct VirtualReceiverConfig {
 };
 
 struct AppConfig {
+  /** Which backend supplies wideband IQ. Defaults to the local sdrplay_api. */
+  ConnectionMode connection = ConnectionMode::Api;
   SdrplayConfig sdrplay;
+  /** Only populated when connection == ConnectionMode::SdrConnect. */
+  std::optional<SdrConnectConfig> sdrconnect;
   std::vector<VirtualReceiverConfig> virtualReceivers;
 };
 
