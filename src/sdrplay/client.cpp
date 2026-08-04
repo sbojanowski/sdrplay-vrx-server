@@ -43,7 +43,8 @@ DecimationResult decimationForSampleRate(double sr) {
 
 } // namespace
 
-SdrplayApiClient::SdrplayApiClient(const SdrplayConfig& cfg) : cfg_(cfg) {}
+SdrplayApiClient::SdrplayApiClient(const SdrplayConfig& cfg, double centerFrequencyHz, double sampleRateHz)
+    : cfg_(cfg), centerFrequencyHz_(centerFrequencyHz), sampleRateHz_(sampleRateHz) {}
 
 SdrplayApiClient::~SdrplayApiClient() {
   try {
@@ -115,7 +116,7 @@ void SdrplayApiClient::connect() {
     checkOrThrow(sdrplay_api_Init(device_.dev, &callbackFns, this), "Init");
 
     std::cout << "[sdrplay] streaming from " << device_.SerNo << " (hwVer " << static_cast<int>(device_.hwVer)
-              << "): " << (cfg_.centerFrequencyHz / 1e6) << " MHz, " << cfg_.sampleRateHz << " sps\n";
+              << "): " << (centerFrequencyHz_ / 1e6) << " MHz, " << sampleRateHz_ << " sps\n";
   } catch (...) {
     // Best-effort cleanup so a failed connect() doesn't leave the API locked/open.
     try {
@@ -128,19 +129,19 @@ void SdrplayApiClient::connect() {
 }
 
 void SdrplayApiClient::configureInitialParams() {
-  const DecimationResult dec = decimationForSampleRate(cfg_.sampleRateHz);
+  const DecimationResult dec = decimationForSampleRate(sampleRateHz_);
 
   sdrplay_api_DevParamsT* devParams = deviceParams_->devParams;
   devParams->ppm = cfg_.ppm;
   devParams->fsFreq.fsHz = dec.adcSampleRateHz;
 
   sdrplay_api_RxChannelParamsT* rx = deviceParams_->rxChannelA;
-  rx->tunerParams.bwType = static_cast<decltype(rx->tunerParams.bwType)>(bwTypeForSampleRate(cfg_.sampleRateHz));
+  rx->tunerParams.bwType = static_cast<decltype(rx->tunerParams.bwType)>(bwTypeForSampleRate(sampleRateHz_));
   // Zero-IF: baseband IQ centered at 0 Hz, matching this project's NCO/decimator,
   // which expect a wideband capture centered on centerFrequencyHz with no residual IF.
   rx->tunerParams.ifType = static_cast<decltype(rx->tunerParams.ifType)>(sdrplay_const::kIfZero);
   rx->tunerParams.loMode = static_cast<decltype(rx->tunerParams.loMode)>(sdrplay_const::kLoAuto);
-  rx->tunerParams.rfFreq.rfHz = cfg_.centerFrequencyHz;
+  rx->tunerParams.rfFreq.rfHz = centerFrequencyHz_;
   rx->tunerParams.gain.gRdB = cfg_.gainReductionDb;
   rx->tunerParams.gain.LNAstate = static_cast<decltype(rx->tunerParams.gain.LNAstate)>(cfg_.lnaState);
   rx->tunerParams.gain.minGr = static_cast<decltype(rx->tunerParams.gain.minGr)>(sdrplay_const::kMinGrNormal);

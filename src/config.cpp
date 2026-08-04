@@ -21,8 +21,6 @@ SdrplayConfig parseSdrplayConfig(const YAML::Node& node) {
 
   SdrplayConfig cfg;
   if (node["serial_number"]) cfg.serialNumber = node["serial_number"].as<std::string>();
-  cfg.centerFrequencyHz = requireField<double>(node, "center_frequency_hz", "sdrplay");
-  cfg.sampleRateHz = requireField<double>(node, "sample_rate_hz", "sdrplay");
   if (node["gain_reduction_db"]) cfg.gainReductionDb = node["gain_reduction_db"].as<int>();
   if (node["lna_state"]) cfg.lnaState = node["lna_state"].as<int>();
   if (node["agc"]) cfg.agc = node["agc"].as<bool>();
@@ -41,6 +39,7 @@ SdrConnectConfig parseSdrConnectConfig(const YAML::Node& node) {
   if (node["port"]) cfg.port = node["port"].as<uint16_t>();
   if (node["serial_number"]) cfg.serialNumber = node["serial_number"].as<std::string>();
   if (node["network_mode"]) cfg.networkMode = node["network_mode"].as<std::string>();
+  if (node["antenna"]) cfg.antenna = node["antenna"].as<std::string>();
 
   if (cfg.networkMode != "Full IQ" && cfg.networkMode != "IQ Lite" && cfg.networkMode != "Compact") {
     throw std::runtime_error(
@@ -71,6 +70,8 @@ AppConfig loadConfig(const std::string& path) {
   }
 
   AppConfig cfg;
+  cfg.centerFrequencyHz = requireField<double>(root, "center_frequency_hz", "config");
+  cfg.sampleRateHz = requireField<double>(root, "sample_rate_hz", "config");
   cfg.sdrplay = parseSdrplayConfig(root["sdrplay"]);
 
   if (root["connection"]) {
@@ -96,11 +97,10 @@ AppConfig loadConfig(const std::string& path) {
   }
 
   for (const auto& vrx : cfg.virtualReceivers) {
-    if (cfg.sdrplay.sampleRateHz <= 0 ||
-        std::fmod(cfg.sdrplay.sampleRateHz, vrx.sampleRateHz) != 0.0) {
+    if (cfg.sampleRateHz <= 0 || std::fmod(cfg.sampleRateHz, vrx.sampleRateHz) != 0.0) {
       throw std::runtime_error(
           "config: VRX \"" + vrx.name + "\": wideband sample rate " +
-          std::to_string(cfg.sdrplay.sampleRateHz) + " is not an integer multiple of requested VRX sample rate " +
+          std::to_string(cfg.sampleRateHz) + " is not an integer multiple of requested VRX sample rate " +
           std::to_string(vrx.sampleRateHz) + ". See dsp/decimator.hpp.");
     }
   }

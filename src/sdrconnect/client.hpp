@@ -21,11 +21,15 @@ namespace sdrconnect {
  * 2) - audio/spectrum/secondary-tuner messages are ignored. The API exposes
  * no property for IF-gain AGC, bias-tee, or PPM correction, so those
  * SdrplayConfig fields have no effect here - see config.hpp's SdrConnectConfig
- * doc comment.
+ * doc comment. Antenna selection uses SdrConnectConfig::antenna (a device
+ * display name), not SdrplayConfig::antenna (a raw numeric code meaningful
+ * only to the local api backend).
  */
 class SdrConnectClient : public IqSource {
 public:
-  SdrConnectClient(const SdrplayConfig& deviceCfg, const SdrConnectConfig& connCfg);
+  /** centerFrequencyHz/sampleRateHz describe the wideband capture and are shared with the local api backend - see AppConfig. */
+  SdrConnectClient(double centerFrequencyHz, double sampleRateHz, const SdrplayConfig& deviceCfg,
+                   const SdrConnectConfig& connCfg);
   ~SdrConnectClient() override;
 
   SdrConnectClient(const SdrConnectClient&) = delete;
@@ -41,6 +45,8 @@ private:
   void handleTextMessage(const std::string& json);
   void handleBinaryMessage(const uint8_t* data, size_t len);
 
+  double centerFrequencyHz_;
+  double sampleRateHz_;
   SdrplayConfig deviceCfg_;
   SdrConnectConfig connCfg_;
   WebSocketClient ws_;

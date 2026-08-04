@@ -38,16 +38,16 @@ int main(int argc, char** argv) {
 
   std::unique_ptr<IqSource> client;
   if (config.connection == ConnectionMode::Api) {
-    client = std::make_unique<SdrplayApiClient>(config.sdrplay);
+    client = std::make_unique<SdrplayApiClient>(config.sdrplay, config.centerFrequencyHz, config.sampleRateHz);
   } else {
-    client = std::make_unique<sdrconnect::SdrConnectClient>(config.sdrplay, *config.sdrconnect);
+    client = std::make_unique<sdrconnect::SdrConnectClient>(config.centerFrequencyHz, config.sampleRateHz,
+                                                              config.sdrplay, *config.sdrconnect);
   }
 
   std::vector<std::unique_ptr<VirtualReceiver>> vrxs;
   vrxs.reserve(config.virtualReceivers.size());
   for (const auto& vrxCfg : config.virtualReceivers) {
-    vrxs.push_back(
-        std::make_unique<VirtualReceiver>(vrxCfg, config.sdrplay.centerFrequencyHz, config.sdrplay.sampleRateHz));
+    vrxs.push_back(std::make_unique<VirtualReceiver>(vrxCfg, config.centerFrequencyHz, config.sampleRateHz));
   }
 
   std::vector<std::unique_ptr<RtlTcpServer>> servers;
@@ -75,8 +75,8 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  std::cout << "Wideband capture: " << (config.sdrplay.centerFrequencyHz / 1e6) << " MHz center, "
-            << (config.sdrplay.sampleRateHz / 1e6) << " MHz span\n";
+  std::cout << "Wideband capture: " << (config.centerFrequencyHz / 1e6) << " MHz center, "
+            << (config.sampleRateHz / 1e6) << " MHz span\n";
 
   while (!g_shouldExit) {
     std::this_thread::sleep_for(std::chrono::milliseconds(200));

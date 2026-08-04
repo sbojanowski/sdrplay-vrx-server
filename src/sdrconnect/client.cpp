@@ -8,8 +8,9 @@
 
 namespace sdrconnect {
 
-SdrConnectClient::SdrConnectClient(const SdrplayConfig& deviceCfg, const SdrConnectConfig& connCfg)
-    : deviceCfg_(deviceCfg), connCfg_(connCfg) {}
+SdrConnectClient::SdrConnectClient(double centerFrequencyHz, double sampleRateHz, const SdrplayConfig& deviceCfg,
+                                    const SdrConnectConfig& connCfg)
+    : centerFrequencyHz_(centerFrequencyHz), sampleRateHz_(sampleRateHz), deviceCfg_(deviceCfg), connCfg_(connCfg) {}
 
 SdrConnectClient::~SdrConnectClient() { close(); }
 
@@ -36,11 +37,14 @@ void SdrConnectClient::connect() {
 
   // device_center_frequency/device_sample_rate/lna_state describe the
   // wideband capture layout the VRX decimation math depends on - honored
-  // here the same as the local sdrplay_api backend. AGC/bias-tee/PPM/antenna
-  // have no equivalent property in this API and are intentionally not sent.
-  sendSetProperty("device_center_frequency", std::to_string(static_cast<uint64_t>(deviceCfg_.centerFrequencyHz)));
-  sendSetProperty("device_sample_rate", std::to_string(deviceCfg_.sampleRateHz));
+  // here the same as the local sdrplay_api backend. AGC/bias-tee/PPM have no
+  // equivalent property in this API and are intentionally not sent.
+  sendSetProperty("device_center_frequency", std::to_string(static_cast<uint64_t>(centerFrequencyHz_)));
+  sendSetProperty("device_sample_rate", std::to_string(sampleRateHz_));
   sendSetProperty("lna_state", std::to_string(deviceCfg_.lnaState));
+  if (connCfg_.antenna) {
+    sendSetProperty("active_antenna", *connCfg_.antenna);
+  }
 
   sendControl("device_stream_enable", "true");
   sendControl("iq_stream_enable", "true");

@@ -1,72 +1,31 @@
-# Central configuration for the wideband capture and the virtual receivers
-# (VRXs) channelized out of it. Mirrors a real two-channel setup (marine VHF
-# + AIS) sitting inside an 8.192 MHz wideband capture centered at 159.35 MHz -
-# swap in your own values.
+connection: sdrconnect
+center_frequency_hz: 159350000
+sample_rate_hz: 9216000
 
-# Which backend supplies wideband IQ. "api" (default) opens the RSP directly
-# via libsdrplay_api, on the same machine the device is plugged into. Use
-# "sdrconnect" to instead pull IQ from a running SDRconnect instance (GUI or
-# Headless) over its WebSocket API - see the "sdrconnect:" block below. Note
-# that SDRconnect's WebSocket API has no property for IF-gain AGC, bias-tee,
-# or PPM correction, so agc/gain_reduction_db/agc_set_point_dbfs/ppm/bias_t/
-# antenna below are silently ignored in that mode (SDRconnect manages them
-# itself); center_frequency_hz/sample_rate_hz/lna_state are honored in both
-# modes, since they describe the wideband capture layout the VRXs decimate
-# from either way.
-connection: api
+#sdrplay:
+  #serial_number: "210509A745"
+  #gain_reduction_db: 40
+  #lna_state: 4
+  #agc: true
+  #agc_set_point_dbfs: -30
+  #ppm: 0
+  #bias_t: false
+  #antenna: 2 # RSPdx antenna C
 
-sdrplay:
-  # Serial number of the RSP to use, if more than one is connected.
-  # Omit to use the first device found. Ignored when connection: sdrconnect
-  # (use sdrconnect.serial_number instead).
-  # serial_number: "1234567890"
-
-  center_frequency_hz: 159350000
-  sample_rate_hz: 8192000
-
-  # Manual IF gain reduction, in dB (sdrplay_api_GainT.gRdB). Ignored while
-  # agc is true; kept as the fallback value if agc is ever turned off.
-  gain_reduction_db: 40
-
-  # Front-end (LNA) attenuation state - model- and band-dependent, see the
-  # SDRplay API spec's gain tables. AGC only adjusts the IF gain stage below
-  # this, so raise this if you see front-end overload events even with AGC
-  # enabled, lower it if the signal seems weak/noisy.
-  lna_state: 4
-
-  # Use the RSP's AGC instead of a fixed gain_reduction_db.
-  agc: true
-  agc_set_point_dbfs: -30
-
-  # Frequency correction, in ppm.
-  ppm: 0
-
-  # Enable bias-tee, if supported by the selected RSP model (not RSP1).
-  bias_t: false
-
-  # Antenna input to select, on models with more than one:
-  #   RSP2: A=5, B=6
-  #   RSPdx / RSPdxR2: A=0, B=1, C=2
-  # Ignored on single-antenna models (RSP1, RSP1A, RSP1B, RSPduo).
-  antenna: 2 # RSPdx antenna C
-
-# Only used when connection: sdrconnect above.
-# sdrconnect:
-#   host: "127.0.0.1"     # host running SDRconnect
-#   port: 5454            # SDRconnect's WebSocket API port
-#   # Select a specific device by serial number. Omit to use whichever device
-#   # SDRconnect currently has active.
-#   serial_number: "1234567890"
-#   # Network streaming mode, only applied if serial_number is set above.
-#   network_mode: "Full IQ" # "Full IQ" | "IQ Lite" | "Compact"
+sdrconnect:
+  host: "127.0.0.1"
+  port: 1234 
+  serial_number: "210509A745"
+  network_mode: "Full IQ" # "Full IQ" | "IQ Lite" | "Compact"
+  antenna: "Antenna C"
 
 virtual_receivers:
-  - name: marine-vhf-ch16
+  - name: marine-vhf
     tcp_port: 1235
-    center_frequency_hz: 156700000 # Ch. 16 calling/distress
-    sample_rate_hz: 256000 # 8192000 / 32
+    center_frequency_hz: 156700000 
+    sample_rate_hz: 512000
 
-  - name: ais
+  - name: marine-ais
     tcp_port: 1236
-    center_frequency_hz: 162000000 # AIS 1/2 (161.975 / 162.025)
-    sample_rate_hz: 256000 # 8192000 / 32
+    center_frequency_hz: 162000000
+    sample_rate_hz: 288000

@@ -31,7 +31,8 @@
  */
 class SdrplayApiClient : public IqSource {
 public:
-  explicit SdrplayApiClient(const SdrplayConfig& cfg);
+  /** centerFrequencyHz/sampleRateHz describe the wideband capture and are shared with the sdrconnect backend - see AppConfig. */
+  SdrplayApiClient(const SdrplayConfig& cfg, double centerFrequencyHz, double sampleRateHz);
   ~SdrplayApiClient() override;
 
   SdrplayApiClient(const SdrplayApiClient&) = delete;
@@ -68,6 +69,8 @@ private:
   void update(uint32_t reasonForUpdate, uint32_t reasonForUpdateExt1 = 0);
 
   SdrplayConfig cfg_;
+  double centerFrequencyHz_;
+  double sampleRateHz_;
   bool opened_ = false;
   bool deviceSelected_ = false;
   sdrplay_api_DeviceT device_{};
