@@ -17,8 +17,6 @@ T requireField(const YAML::Node& node, const char* key, const std::string& conte
 }
 
 SdrplayConfig parseSdrplayConfig(const YAML::Node& node) {
-  if (!node) throw std::runtime_error("config: missing required \"sdrplay\" section");
-
   SdrplayConfig cfg;
   if (node["serial_number"]) cfg.serialNumber = node["serial_number"].as<std::string>();
   if (node["gain_reduction_db"]) cfg.gainReductionDb = node["gain_reduction_db"].as<int>();
@@ -72,7 +70,6 @@ AppConfig loadConfig(const std::string& path) {
   AppConfig cfg;
   cfg.centerFrequencyHz = requireField<double>(root, "center_frequency_hz", "config");
   cfg.sampleRateHz = requireField<double>(root, "sample_rate_hz", "config");
-  cfg.sdrplay = parseSdrplayConfig(root["sdrplay"]);
 
   if (root["connection"]) {
     const std::string mode = root["connection"].as<std::string>();
@@ -84,6 +81,17 @@ AppConfig loadConfig(const std::string& path) {
       throw std::runtime_error("config: \"connection\" must be \"api\" or \"sdrconnect\", got \"" + mode + "\"");
     }
   }
+
+  // sdrplay: is required for connection: api, but still parsed (if present)
+  // for connection: sdrconnect too, since lna_state is honored by both
+  // backends - see SdrConnectConfig's doc comment in config.hpp.
+  if (cfg.connection == ConnectionMode::Api) {
+    if (!root["sdrplay"]) throw std::runtime_error("config: missing required \"sdrplay\" section (connection: api)");
+    cfg.sdrplay = parseSdrplayConfig(root["sdrplay"]);
+  } else if (root["sdrplay"]) {
+    cfg.sdrplay = parseSdrplayConfig(root["sdrplay"]);
+  }
+
   if (cfg.connection == ConnectionMode::SdrConnect) {
     cfg.sdrconnect = parseSdrConnectConfig(root["sdrconnect"]);
   }

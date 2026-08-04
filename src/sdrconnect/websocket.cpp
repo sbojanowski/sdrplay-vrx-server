@@ -1,6 +1,8 @@
 #include "websocket.hpp"
 
+#include <fcntl.h>
 #include <netdb.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -14,6 +16,54 @@
 namespace sdrconnect {
 
 namespace {
+
+constexpr int kConnectTimeoutSec = 5;
+constexpr int kHandshakeTimeoutSec = 5;
+
+// Connects with a bounded timeout instead of the OS's default (which can be
+// minutes on some systems if a SYN is silently dropped) - a plain blocking
+// connect() here would otherwise hang forever with zero visible output on an
+// unreachable/firewalled host, indistinguishable from the process just being
+// slow to start. Returns false and fills `err` on failure/timeout.
+bool connectWithTimeout(int fd, const sockaddr* addr, socklen_t addrlen, int timeoutSec, std::string& err) {
+  const int flags = fcntl(fd, F_GETFL, 0);
+  fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+
+  int rc = ::connect(fd, addr, addrlen);
+  if (rc == 0) {
+    fcntl(fd, F_SETFL, flags);
+    return true;
+  }
+  if (errno != EINPROGRESS) {
+    err = std::strerror(errno);
+    return false;
+  }
+
+  fd_set writeSet;
+  FD_ZERO(&writeSet);
+  FD_SET(fd, &writeSet);
+  timeval tv{timeoutSec, 0};
+  rc = select(fd + 1, nullptr, &writeSet, nullptr, &tv);
+  if (rc == 0) {
+    err = "timed out after " + std::to_string(timeoutSec) + "s";
+    return false;
+  }
+  if (rc < 0) {
+    err = std::strerror(errno);
+    return false;
+  }
+
+  int soErr = 0;
+  socklen_t soErrLen = sizeof(soErr);
+  getsockopt(fd, SOL_SOCKET, SO_ERROR, &soErr, &soErrLen);
+  if (soErr != 0) {
+    err = std::strerror(soErr);
+    return false;
+  }
+
+  fcntl(fd, F_SETFL, flags);
+  return true;
+}
 
 // --- SHA-1 (RFC 3174) - hand-rolled so the WebSocket handshake needs no
 // OpenSSL/libcrypto dependency (not guaranteed present on the ARM boxes this
@@ -181,8 +231,7 @@ void WebSocketClient::connect(const std::string& host, uint16_t port) {
       lastError = std::strerror(errno);
       continue;
     }
-    if (::connect(fd, p->ai_addr, p->ai_addrlen) == 0) break;
-    lastError = std::strerror(errno);
+    if (connectWithTimeout(fd, p->ai_addr, p->ai_addrlen, kConnectTimeoutSec, lastError)) break;
     ::close(fd);
     fd = -1;
   }
@@ -206,15 +255,31 @@ void WebSocketClient::connect(const std::string& host, uint16_t port) {
                                "Sec-WebSocket-Version: 13\r\n"
                                "\r\n";
   try {
+    // Bounded so a server that accepts the TCP connection but never replies
+    // to the upgrade request (wrong port, non-WebSocket service, API not
+    // actually enabled) fails with a clear timeout instead of hanging
+    // forever - reset to blocking-with-no-timeout below once the handshake
+    // completes, since the streaming read loop should block indefinitely.
+    timeval handshakeTimeout{kHandshakeTimeoutSec, 0};
+    setsockopt(fd_, SOL_SOCKET, SO_RCVTIMEO, &handshakeTimeout, sizeof(handshakeTimeout));
+
     sendAll(fd_, reinterpret_cast<const uint8_t*>(request.data()), request.size());
 
     std::string response;
     char chunk[1024];
     while (response.find("\r\n\r\n") == std::string::npos) {
       const ssize_t n = recv(fd_, chunk, sizeof(chunk), 0);
+      if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+        throw std::runtime_error("timed out after " + std::to_string(kHandshakeTimeoutSec) +
+                                  "s waiting for handshake response (server accepted the TCP connection but never "
+                                  "replied to the WebSocket upgrade request)");
+      }
       if (n <= 0) throw std::runtime_error("connection closed during WebSocket handshake");
       response.append(chunk, static_cast<size_t>(n));
     }
+
+    const timeval noTimeout{0, 0};
+    setsockopt(fd_, SOL_SOCKET, SO_RCVTIMEO, &noTimeout, sizeof(noTimeout));
 
     if (response.find("101") == std::string::npos || response.find(' ') == std::string::npos ||
         response.compare(0, 5, "HTTP/") != 0) {
@@ -233,6 +298,15 @@ void WebSocketClient::connect(const std::string& host, uint16_t port) {
     const std::string expected = base64Encode(digest.data(), digest.size());
     if (accept != expected) {
       throw std::runtime_error("handshake failed: Sec-WebSocket-Accept mismatch");
+    }
+
+    // Anything the server pushed immediately after the header terminator, in
+    // the same TCP read as the tail of the handshake response, would
+    // otherwise be silently dropped here (this string goes out of scope) -
+    // runReadLoop() seeds its own buffer with it instead of starting fresh.
+    const size_t headerEnd = response.find("\r\n\r\n") + 4;
+    if (headerEnd < response.size()) {
+      pendingBytes_.assign(response.begin() + static_cast<long>(headerEnd), response.end());
     }
   } catch (...) {
     ::close(fd_);
@@ -288,7 +362,7 @@ void WebSocketClient::close() {
 }
 
 void WebSocketClient::runReadLoop(const TextHandler& onText, const BinaryHandler& onBinary) {
-  std::vector<uint8_t> buf;
+  std::vector<uint8_t> buf = std::move(pendingBytes_);
   uint8_t chunk[65536]; // matches the vendor's own C# reference client's receive buffer size
 
   bool fragActive = false;

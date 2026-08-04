@@ -44,6 +44,9 @@ private:
   void sendFrame(uint8_t opcode, const uint8_t* payload, size_t len);
 
   int fd_ = -1;
+  // Bytes read past the handshake's header terminator in the same recv() as
+  // its tail, if any - seeded into runReadLoop()'s buffer instead of dropped.
+  std::vector<uint8_t> pendingBytes_;
 };
 
 } // namespace sdrconnect
