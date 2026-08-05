@@ -55,15 +55,26 @@ SdrplayApiClient::~SdrplayApiClient() {
 }
 
 void SdrplayApiClient::connect() {
+  // Each step logs (and flushes) before/after a blocking API call, since
+  // connect() otherwise prints nothing until the very end - if this hangs,
+  // whichever "..." line is the last one printed pinpoints the exact
+  // sdrplay_api_* call stuck (most commonly Open(), if sdrplay_apiService
+  // isn't running - see cpp/README.md's "Known risk" section).
+  std::cout << "[sdrplay] opening API session..." << std::flush;
   checkOrThrow(sdrplay_api_Open(), "Open");
   opened_ = true;
+  std::cout << " ok\n";
 
   try {
+    std::cout << "[sdrplay] locking device API..." << std::flush;
     checkOrThrow(sdrplay_api_LockDeviceApi(), "LockDeviceApi");
+    std::cout << " ok\n";
 
+    std::cout << "[sdrplay] enumerating devices..." << std::flush;
     sdrplay_api_DeviceT devices[SDRPLAY_MAX_DEVICES];
     unsigned int numDevices = 0;
     checkOrThrow(sdrplay_api_GetDevices(devices, &numDevices, SDRPLAY_MAX_DEVICES), "GetDevices");
+    std::cout << " ok (" << numDevices << " found)\n";
     if (numDevices == 0) {
       throw std::runtime_error("no RSP devices found");
     }
@@ -97,14 +108,20 @@ void SdrplayApiClient::connect() {
       device_.tuner = static_cast<decltype(device_.tuner)>(sdrplay_const::kTunerA);
     }
 
+    std::cout << "[sdrplay] selecting device " << device_.SerNo << "..." << std::flush;
     checkOrThrow(sdrplay_api_SelectDevice(&device_), "SelectDevice");
     deviceSelected_ = true;
+    std::cout << " ok\n";
 
+    std::cout << "[sdrplay] unlocking device API..." << std::flush;
     checkOrThrow(sdrplay_api_UnlockDeviceApi(), "UnlockDeviceApi");
+    std::cout << " ok\n";
 
+    std::cout << "[sdrplay] fetching device params..." << std::flush;
     sdrplay_api_DeviceParamsT* deviceParams = nullptr;
     checkOrThrow(sdrplay_api_GetDeviceParams(device_.dev, &deviceParams), "GetDeviceParams");
     deviceParams_ = deviceParams;
+    std::cout << " ok\n";
 
     configureInitialParams();
 
@@ -113,7 +130,9 @@ void SdrplayApiClient::connect() {
     callbackFns.StreamBCbFn = nullptr;
     callbackFns.EventCbFn = &SdrplayApiClient::eventCallbackTrampoline;
 
+    std::cout << "[sdrplay] starting stream (Init)..." << std::flush;
     checkOrThrow(sdrplay_api_Init(device_.dev, &callbackFns, this), "Init");
+    std::cout << " ok\n";
 
     std::cout << "[sdrplay] streaming from " << device_.SerNo << " (hwVer " << static_cast<int>(device_.hwVer)
               << "): " << (centerFrequencyHz_ / 1e6) << " MHz, " << sampleRateHz_ << " sps\n";

@@ -1,23 +1,26 @@
-connection: sdrconnect
+connection: api
 center_frequency_hz: 159350000
 sample_rate_hz: 9216000
 
-#sdrplay:
-  #serial_number: "210509A745"
-  #gain_reduction_db: 40
-  #lna_state: 4
-  #agc: true
-  #agc_set_point_dbfs: -30
-  #ppm: 0
-  #bias_t: false
-  #antenna: 2 # RSPdx antenna C
-
-sdrconnect:
-  host: "127.0.0.1"
-  port: 1234 
+sdrplay:
   serial_number: "210509A745"
-  network_mode: "Full IQ" # "Full IQ" | "IQ Lite" | "Compact"
-  antenna: "Antenna C"
+  gain_reduction_db: 40
+  lna_state: 4
+  agc: true
+  agc_set_point_dbfs: -30
+  ppm: 0
+  bias_t: false
+  antenna: 2 # RSPdx antenna C
+
+#sdrconnect:
+  #host: "192.168.88.104"
+  # SDRconnect_headless's WebSocket API port (--websocket_port=5454) - NOT
+  # the legacy `SDRconnect --server` port (50000), which is a different,
+  # incompatible binary protocol this client doesn't speak.
+  #port: 5454
+  #serial_number: "210509A745"
+  #network_mode: "Full IQ" # "Full IQ" | "IQ Lite" | "Compact"
+  #antenna: "Antenna C"
 
 virtual_receivers:
   - name: marine-vhf
