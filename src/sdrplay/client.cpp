@@ -1,5 +1,7 @@
 #include "client.hpp"
 
+#include <chrono>
+#include <future>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -7,6 +9,31 @@
 #include "../sdrplay_const.hpp"
 
 namespace {
+
+constexpr int kLockDeviceApiWarnAfterSec = 8;
+
+/**
+ * sdrplay_api_LockDeviceApi() is a cross-process mutex with no timeout of
+ * its own - if another process (a stale/crashed prior run of this binary,
+ * or another SDR app) already holds the RSP's lock and never released it,
+ * this blocks forever with zero indication why. There's no way to cancel
+ * the vendor call once in flight, so this runs it on its own thread and,
+ * if it hasn't returned within kLockDeviceApiWarnAfterSec, prints an
+ * actionable hint (once) while still waiting on the real result - the
+ * underlying call is left to complete (or hang) on its own thread either
+ * way, since abandoning it isn't safe.
+ */
+sdrplay_api_ErrT lockDeviceApiWithHint() {
+  auto future = std::async(std::launch::async, &sdrplay_api_LockDeviceApi);
+  if (future.wait_for(std::chrono::seconds(kLockDeviceApiWarnAfterSec)) == std::future_status::timeout) {
+    std::cerr << "\n[sdrplay] still waiting to lock the device API after " << kLockDeviceApiWarnAfterSec
+              << "s - something else likely already holds it. Check for a stale prior instance ("
+                 "`ps aux | grep sdrplay-vrx-server`, kill it if found), another SDR app with this RSP open, "
+                 "or restart the service (`sudo systemctl restart sdrplay_apiService`) to force-clear it. "
+                 "Still waiting...\n";
+  }
+  return future.get();
+}
 
 /** rsp_tcp.c's own bandwidth-from-samplerate ladder (see init_rsp_device()). */
 int bwTypeForSampleRate(double sr) {
@@ -67,7 +94,7 @@ void SdrplayApiClient::connect() {
 
   try {
     std::cout << "[sdrplay] locking device API..." << std::flush;
-    checkOrThrow(sdrplay_api_LockDeviceApi(), "LockDeviceApi");
+    checkOrThrow(lockDeviceApiWithHint(), "LockDeviceApi");
     std::cout << " ok\n";
 
     std::cout << "[sdrplay] enumerating devices..." << std::flush;
