@@ -51,6 +51,7 @@ VirtualReceiverConfig parseVirtualReceiverConfig(const YAML::Node& node) {
   VirtualReceiverConfig cfg;
   cfg.name = requireField<std::string>(node, "name", "virtual_receivers[]");
   cfg.tcpPort = requireField<uint16_t>(node, "tcp_port", "virtual_receivers[]: \"" + cfg.name + "\"");
+  if (node["spyserver_port"]) cfg.spyserverPort = node["spyserver_port"].as<uint16_t>();
   cfg.centerFrequencyHz =
       requireField<double>(node, "center_frequency_hz", "virtual_receivers[]: \"" + cfg.name + "\"");
   cfg.sampleRateHz = requireField<double>(node, "sample_rate_hz", "virtual_receivers[]: \"" + cfg.name + "\"");

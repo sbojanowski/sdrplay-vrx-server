@@ -53,6 +53,7 @@ add_executable(sdrplay-vrx-server
   src/rtltcp/server.cpp
   src/sdrconnect/websocket.cpp
   src/sdrconnect/client.cpp
+  src/spyserver/server.cpp
 )
 
 target_include_directories(sdrplay-vrx-server PRIVATE

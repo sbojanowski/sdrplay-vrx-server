@@ -44,7 +44,7 @@ void RtlTcpServer::start() {
 
   running_ = true;
   // Fan this VRX's decimated IQ out to every currently-connected client.
-  vrx_.setIqCallback([this](const uint8_t* data, size_t len) { broadcastIq(data, len); });
+  vrx_.addIqCallback([this](const uint8_t* data, size_t len) { broadcastIq(data, len); });
 
   std::cout << "[" << vrx_.name() << "] rtl_tcp server listening on :" << port_ << " (center "
             << (vrx_.getCenterFrequencyHz() / 1e6) << " MHz, " << vrx_.getSampleRateHz() << " sps)\n";

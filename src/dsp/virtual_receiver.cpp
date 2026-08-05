@@ -68,5 +68,5 @@ void VirtualReceiver::processWidebandChunk(const float* widebandIq, size_t numSa
     outBuf_[i] = static_cast<uint8_t>(std::lround(clamped * 127.0f) + 128);
   }
 
-  if (onIq_) onIq_(outBuf_.data(), outBuf_.size());
+  for (const auto& cb : callbacks_) cb(outBuf_.data(), outBuf_.size());
 }

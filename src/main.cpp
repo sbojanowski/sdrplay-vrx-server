@@ -12,6 +12,7 @@
 #include "rtltcp/server.hpp"
 #include "sdrconnect/client.hpp"
 #include "sdrplay/client.hpp"
+#include "spyserver/server.hpp"
 
 namespace {
 
@@ -56,6 +57,16 @@ int main(int argc, char** argv) {
     servers.push_back(std::make_unique<RtlTcpServer>(*vrxs[i], config.virtualReceivers[i].tcpPort));
   }
 
+  // SpyServer is opt-in per VRX (spyserver_port: 0/unset skips it) - both
+  // this and the RtlTcpServer above register their own IQ callback on the
+  // same VirtualReceiver via addIqCallback(), so a VRX can feed either, both,
+  // or (with tcp_port required but spyserver_port left unset) just rtl_tcp.
+  std::vector<std::unique_ptr<SpyServerServer>> spyServers;
+  for (size_t i = 0; i < vrxs.size(); ++i) {
+    if (config.virtualReceivers[i].spyserverPort == 0) continue;
+    spyServers.push_back(std::make_unique<SpyServerServer>(*vrxs[i], config.virtualReceivers[i].spyserverPort));
+  }
+
   // Fan each wideband IQ chunk out to every VRX's DDC chain - the "single
   // upstream link, N downstream channels" fanout. Each VRX independently
   // mixes+decimates the same wideband samples down to its own slice. Runs
@@ -68,10 +79,12 @@ int main(int argc, char** argv) {
 
   try {
     for (auto& server : servers) server->start();
+    for (auto& server : spyServers) server->start();
     client->connect();
   } catch (const std::exception& e) {
     std::cerr << "Startup failed: " << e.what() << "\n";
     for (auto& server : servers) server->stop();
+    for (auto& server : spyServers) server->stop();
     return 1;
   }
 
@@ -84,6 +97,7 @@ int main(int argc, char** argv) {
 
   std::cout << "\nShutting down...\n";
   for (auto& server : servers) server->stop();
+  for (auto& server : spyServers) server->stop();
   client->close();
   return 0;
 }

@@ -3,11 +3,15 @@
 Backend service that drives an SDRplay RSP directly through the native
 **SDRplay API**, takes its wideband IQ capture, and channelizes it into
 independently tunable **virtual receivers**, each exposed as its own
-`rtl_tcp`-compatible TCP server. Any librtlsdr-based client (SDR++,
-AIS-catcher, GQRX, ...) connects to a VRX's port exactly as it would to a
-real RTL-SDR dongle, and can retune within the wideband capture's span -
-unlike a plain `rtlmux` relay, retuning here is real (it moves the VRX's
-internal NCO), so a client's frequency assumptions are actually correct.
+`rtl_tcp`-compatible TCP server *and*, optionally, its own **SpyServer**
+TCP server (8-bit IQ). Any librtlsdr-based client (SDR++, AIS-catcher,
+GQRX, ...) connects to a VRX's rtl_tcp port exactly as it would to a real
+RTL-SDR dongle, and any SpyServer client (SDR++, SDR#, CubicSDR, ...) can
+connect to its SpyServer port instead/as well - both protocols are fed by
+the same VRX, so a client on either one can retune within the wideband
+capture's span; unlike a plain `rtlmux` relay, retuning here is real (it
+moves the VRX's internal NCO), so a client's frequency assumptions are
+actually correct.
 
 This is a from-scratch C++ port of an earlier Node/TypeScript prototype
 (kept for reference in `../legacy-ts/`), written for continuous unattended
@@ -27,6 +31,8 @@ cpp/
     dsp/virtual_receiver.hpp/.cpp   Wires NCO + decimator into one VRX
     rtltcp/protocol.hpp/.cpp  rtl_tcp wire format constants/helpers
     rtltcp/server.hpp/.cpp    rtl_tcp-compatible TCP server per VRX (POSIX sockets)
+    spyserver/protocol.hpp    SpyServer wire format structs/enums/constants
+    spyserver/server.hpp/.cpp SpyServer-protocol TCP server per VRX (optional, alongside rtl_tcp)
     main.cpp                  Wires it all together
 ```
 
@@ -77,6 +83,10 @@ original TS version's `SdrplayConfig`/`VirtualReceiverConfig`:
 - `virtual_receivers[].sample_rate_hz` must evenly divide
   `sdrplay.sample_rate_hz` (integer decimation only - see
   `dsp/decimator.hpp`).
+- `virtual_receivers[].spyserver_port` - optional; starts a SpyServer
+  endpoint for that VRX (streaming its IQ as 8-bit unsigned samples,
+  identical format to the rtl_tcp side) alongside its required `tcp_port`.
+  Omit/`0` to skip it - the rtl_tcp endpoint alone is unaffected either way.
 
 ## Known risk: `sdrplay_client.cpp` is not verified against a real build
 
@@ -108,6 +118,27 @@ compiler names. Before trusting this against real hardware:
   `sdrplay_api_GetDevices()` + `sdrplay_api_GetErrorString()` on any error)
   before relying on the full streaming path.
 
+## Known risk: `spyserver/` is not verified against a real SpyServer client
+
+The SpyServer wire protocol has no public server-side reference (the real
+Airspy `spyserver` binary is closed-source) and no formal spec document.
+This was implemented against the protocol's structs/enums as vendored into
+SDR++'s open-source client (`spyserver_protocol.h`, written by the
+protocol's original author) and that same client's parsing logic
+(`spyserver_client.cpp`) - i.e. against what a real, widely-deployed client
+actually expects on the wire, not against the original server's own
+(unavailable) implementation. `spyserver/protocol.hpp` flags the couple of
+specific fields that aren't nailed down by any public source (mainly
+`MessageHeader::ProtocolID`'s exact expected value, which SDR++'s client
+never actually validates). Before trusting this against a real client:
+
+- Test against at least one real SpyServer client (SDR++ is the one this was
+  built against) connecting over the network, not just localhost - retune,
+  toggle streaming on/off, and disconnect/reconnect a few times.
+- If a different client (SDR#, CubicSDR, gqrx) fails to connect where SDR++
+  works, capture its traffic and diff against what's implemented here -
+  same approach as this project's own sdrconnect protocol investigation.
+
 ## Known simplifications (see comments in code)
 
 - **Integer decimation only.** A VRX's sample rate must evenly divide the
@@ -128,3 +159,19 @@ compiler names. Before trusting this against real hardware:
   via `SdrplayApiClient::setGainReduction()`/`setLnaState()`/`setAgc()`/
   `setBiasTee()`, which affect the *whole* wideband capture, not just one
   VRX.
+- **SpyServer only ever streams IQ, always as 8-bit unsigned.** AF
+  (demodulated audio) and FFT (spectrum display) stream types aren't
+  implemented - `DeviceInfo.ForcedIqFormat` tells well-behaved clients not to
+  bother asking for a different IQ format, and settings for the unsupported
+  stream types are accepted-and-ignored the same way out-of-scope rtl_tcp
+  commands are.
+- **A VRX's SpyServer and rtl_tcp endpoints share one NCO/decimator.**
+  Retuning from either protocol (rtl_tcp `SET_FREQUENCY` or SpyServer's
+  `IQ_FREQUENCY` setting) moves the same shared VRX, so it retunes *every*
+  client connected to that VRX on either endpoint - same tradeoff the
+  rtl_tcp side already had with multiple simultaneous rtl_tcp clients, just
+  now spanning both protocols too. Also, a SpyServer client's `ClientSync`
+  frequency fields are a snapshot sent once at connect time - a later retune
+  from elsewhere isn't pushed to already-connected SpyServer clients, so
+  their own UI may show a stale center frequency even though the stream
+  itself did retune.

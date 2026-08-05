@@ -74,6 +74,8 @@ struct VirtualReceiverConfig {
   std::string name;
   /** TCP port this VRX's rtl_tcp-compatible server listens on. */
   uint16_t tcpPort = 0;
+  /** TCP port this VRX's SpyServer-protocol server listens on, streaming 8-bit unsigned IQ. Unset (0) disables this VRX's SpyServer endpoint - only the rtl_tcp one is required. */
+  uint16_t spyserverPort = 0;
   /**
    * Initial center frequency for this VRX, in Hz. Must fall within the
    * wideband capture's span. Clients can retune within that span later via

@@ -25,10 +25,12 @@ sdrplay:
 virtual_receivers:
   - name: marine-vhf
     tcp_port: 1235
-    center_frequency_hz: 156700000 
+    spyserver_port: 5555 # optional - omit to skip this VRX's SpyServer endpoint, rtl_tcp above is unaffected either way
+    center_frequency_hz: 156700000
     sample_rate_hz: 512000
 
   - name: marine-ais
     tcp_port: 1236
+    spyserver_port: 5556
     center_frequency_hz: 162000000
     sample_rate_hz: 288000
