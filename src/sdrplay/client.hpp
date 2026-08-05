@@ -73,6 +73,11 @@ private:
   double sampleRateHz_;
   bool opened_ = false;
   bool deviceSelected_ = false;
+  // Distinct from deviceSelected_: only set once sdrplay_api_Init() actually
+  // succeeds, so close()'s cleanup path doesn't call sdrplay_api_Uninit() (and
+  // print a confusing secondary "NotInitialised" error) when a failed Init()
+  // is what triggered the cleanup in the first place.
+  bool initialized_ = false;
   sdrplay_api_DeviceT device_{};
   sdrplay_api_DeviceParamsT* deviceParams_ = nullptr;
 

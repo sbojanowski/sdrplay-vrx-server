@@ -159,6 +159,7 @@ void SdrplayApiClient::connect() {
 
     std::cout << "[sdrplay] starting stream (Init)..." << std::flush;
     checkOrThrow(sdrplay_api_Init(device_.dev, &callbackFns, this), "Init");
+    initialized_ = true;
     std::cout << " ok\n";
 
     std::cout << "[sdrplay] streaming from " << device_.SerNo << " (hwVer " << static_cast<int>(device_.hwVer)
@@ -366,11 +367,12 @@ void SdrplayApiClient::checkOrThrow(sdrplay_api_ErrT err, const char* what) {
 void SdrplayApiClient::close() {
   if (!opened_) return;
 
-  if (deviceSelected_ && device_.dev != nullptr) {
+  if (initialized_ && device_.dev != nullptr) {
     const sdrplay_api_ErrT err = sdrplay_api_Uninit(device_.dev);
     if (err != sdrplay_const::kErrSuccess) {
       std::cerr << "[sdrplay] Uninit failed: " << sdrplay_api_GetErrorString(err) << "\n";
     }
+    initialized_ = false;
   }
 
   if (deviceSelected_) {
